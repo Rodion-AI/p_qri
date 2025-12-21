@@ -39,9 +39,9 @@ kwargs = dict(
 )
 
 if not USE_STUDIO:
-    kwargs["checkpointer"] = SqliteSaver(conn)
+    kwargs["checkpointer"] = SqliteSaver(conn) # type: ignore
 
-agent = create_agent(**kwargs)
+agent = create_agent(**kwargs) # type: ignore
 
 
 def ask(question: str):
