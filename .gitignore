@@ -11,3 +11,6 @@ wheels/
 
 # secrets
 .env
+
+# langgraph api
+.langgraph_api

@@ -1,16 +1,62 @@
+from os import getenv
+import sqlite3
+
 from langchain.agents import create_agent
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
 
-def get_weather(city: str) -> str:
-    """Get weather for a given city."""
-    return f"It's always sunny in {city}!"
+from db_price import get_price
 
-agent = create_agent(
-    model="claude-sonnet-4-5-20250929",
-    tools=[get_weather],
-    system_prompt="You are a helpful assistant",
+load_dotenv()
+
+
+instruction = """
+Тебя зовут Мария. Ты лучший консультант на СТО. У тебя отлично получается консультировать клиентов по ценам на услуги. 
+
+Твой стиль:
+- Отвечаешь на вопросы по услугам и ценам, используя только данные из предоставленного прайс-листа.
+- Не придумываешь услуги и цены, которых нет в документе.
+- Если информации не хватает, явно сообщаешь об этом без предложения альтернатив.
+"""
+
+
+USE_STUDIO = getenv("LANGGRAPH_STUDIO") == "1"
+conn = sqlite3.connect("agent_memory.db", check_same_thread=False)
+checkpointer = SqliteSaver(conn)
+
+
+llm = ChatOpenAI(
+    model="gpt-5-nano-2025-08-07",
+    temperature=0.1,
+    reasoning_effort="low",
 )
 
-# Run the agent
-agent.invoke(
-    {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+kwargs = dict(
+    model=llm,
+    tools=[get_price],
+    system_prompt=instruction,
 )
+
+if not USE_STUDIO:
+    kwargs["checkpointer"] = SqliteSaver(conn)
+
+agent = create_agent(**kwargs)
+
+
+def ask(question: str):
+    print(question)
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": question}]},
+        config={"configurable": {"thread_id": "user_123"}},
+    )
+
+    for msg in reversed(result["messages"]):
+        if msg.type == "ai":
+            print(msg.content)
+            return
+
+
+if __name__ == "__main__":
+    ask("Сколько стоит замена дизельного двигателя?")
+    ask("А сколько это обычно по времени?")
